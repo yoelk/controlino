@@ -1,229 +1,47 @@
-/*
-	controlino.cpp - Library for controling an Arduino using the USB
-	Created by Joel Koenka, April 2014
-	Released under GPLv3
+/*******************************************************************************
+ * Controlino2 - A library to control the resources (e.g. pins)
+ * of electronic controllers (e.g. Arduino)
+ * through some communication interface (e.g. USB)
+ *
+ * Copyright (C) 2015 Joel Koenka
+ *
+ * This code is released under the MIT license.
+ *
+ * Controlino let's a user control the Arduino pins by issuing simple serial commands such
+ * as "CH:READ", "CH:WRITE" etc.
+ * It was originally written to be used with Instrumentino, the open-source GUI platform
+ * for experimental settings, but can also be used for other purposes.
+ *
+ * Links:
+ *
+ * Scientific articles:
+ * http://www.sciencedirect.com/science/article/pii/S0010465514002112
+ * http://www.ingentaconnect.com/content/scs/chimia/2015/00000069/00000004/art00003
+ *
+ * Package in PyPi:
+ * https://pypi.python.org/pypi/instrumentino
+ *
+ * Code in GitHub:
+ * https://github.com/yoelk/instrumentino
+ * https://github.com/yoelk/instrumentino2
+ *
+ *
+ * Modifiers (!!! ATTENTION !!! PLEASE READ !!!)
+ * =============================================
+ * Before compiling this sketch, make sure you've checked
+ * that the right modifiers are set in "controlino_cfg.h"
+ *
+ ******************************************************************************/
 
-	Controlino let's a user control the Arduino pins by issuing simple serial commands such as "Read" "Write" etc.
-	It was originally written to be used with Instrumentino, the open-source GUI platform for experimental settings,
-	but can also be used for other purposes.
-	For Instrumentino, see:
-	http://www.sciencedirect.com/science/article/pii/S0010465514002112	- Release article
-	https://pypi.python.org/pypi/instrumentino/1.0						- Package in PyPi
-	https://github.com/yoelk/instrumentino								- Code in GitHub
-
-	Modifiers (THIS IS IMPORTANT !!! PLEASE READ !!!)
-	=================================================
-	- Library support:
-	  Controlino gradually grows to include support for more and more Arduino libraries (such as PID, SoftwareSerial, etc.)
-	  Since not everyone needs to use all of the libraries, a set of #define statements are used to include/exclude them.
-
-	- Arduino board:
-	  Controlino can run on any Arduino, but you need to tell it which one!
- */
-
-/* ------------------------------------------------------------
-Dear user (1):
-Here you should specify which Arduino libraries you want to use.
-Please comment/uncomment the appropriate define statements
------------------------------------------------------------- */
-//#define USE_SOFTWARE_SERIAL
-#define USE_PID
-#define USE_WIRE
-
-/* ------------------------------------------------------------
-Dear user (2):
-Here you should choose the Arduino Board for which you'll
-compile Controlino. Only one model should be used (uncommented)
------------------------------------------------------------- */
-//#define ARDUINO_BOARD_UNO
-//#define ARDUINO_BOARD_LEONARDO
-//#define ARDUINO_BOARD_DUE
-//#define ARDUINO_BOARD_YUN
-//#define ARDUINO_BOARD_TRE
-//#define ARDUINO_BOARD_ZERO
-//#define ARDUINO_BOARD_MICRO
-//#define ARDUINO_BOARD_ESPLORA
-//#define ARDUINO_BOARD_MEGA_ADK
-//#define ARDUINO_BOARD_MEGA_2560
-//#define ARDUINO_BOARD_ETHERNET
-//#define ARDUINO_BOARD_ROBOT
-//#define ARDUINO_BOARD_MINI
-#define ARDUINO_BOARD_NANO
-//#define ARDUINO_BOARD_LILYPAD
-//#define ARDUINO_BOARD_LILYPAD_SIMPLE
-//#define ARDUINO_BOARD_LILYPAD_SIMPLE_SNAP
-//#define ARDUINO_BOARD_LILYPAD_USB
-//#define ARDUINO_BOARD_PRO
-//#define ARDUINO_BOARD_PRO_MINI
-//#define ARDUINO_BOARD_FIO
-
-
-
-
-
-
-
-/* ------------------------------------------------------------
-From here down, you shouldn't touch anything (unless you know
-what you're doing)
------------------------------------------------------------- */
-#include "Arduino.h"
+#include "controlino.h"
 #include "string.h"
-#include "HardwareSerial.h"
-#include "Wire.h"
 
-// Default values, to be overridden later
-#define HARD_SER_MAX_PORTS	0
-#define SOFT_SER_MAX_PORTS	0
-
-// Arduino Uno
-#ifdef ARDUINO_BOARD_UNO
-	#define DIGI_PINS	14
-#endif
-
-// Arduino Leonardo
-#ifdef ARDUINO_BOARD_LEONARDO
-	#define DIGI_PINS	20
-
-	#define HARD_SER_MAX_PORTS	1
-	extern HardwareSerial Serial1;
-#endif
-
-// Arduino Due
-#ifdef ARDUINO_BOARD_DUE
-	#define DIGI_PINS	54
-
-	#define HARD_SER_MAX_PORTS	3
-	extern HardwareSerial Serial1;
-	extern HardwareSerial Serial2;
-	extern HardwareSerial Serial3;
-#endif
-
-// Arduino Yun
-#ifdef ARDUINO_BOARD_YUN
-	#define DIGI_PINS	20
-#endif
-
-// Arduino Tre
-#ifdef ARDUINO_BOARD_TRE
-	#define DIGI_PINS	14
-#endif
-
-// Arduino Zero
-#ifdef ARDUINO_BOARD_ZERO
-	#define DIGI_PINS	14
-#endif
-
-// Arduino Micro
-#ifdef ARDUINO_BOARD_MICRO
-	#define DIGI_PINS	20
-#endif
-
-// Arduino Mega ADK
-#ifdef ARDUINO_BOARD_MEGA_ADK
-	#define DIGI_PINS	54
-
-	#define HARD_SER_MAX_PORTS	3
-	extern HardwareSerial Serial1;
-	extern HardwareSerial Serial2;
-	extern HardwareSerial Serial3;
-#endif
-
-// Arduino Mega 2560
-#ifdef ARDUINO_BOARD_MEGA_2560
-	#define DIGI_PINS	54
-
-	#define HARD_SER_MAX_PORTS	3
-	extern HardwareSerial Serial1;
-	extern HardwareSerial Serial2;
-	extern HardwareSerial Serial3;
-#endif
-
-// Arduino Ethernet
-#ifdef ARDUINO_BOARD_ETHERNET
-	#define DIGI_PINS	14
-#endif
-
-// Arduino Nano
-#ifdef ARDUINO_BOARD_NANO
-	#define DIGI_PINS	14
-#endif
-
-// Arduino Lilypad
-#ifdef ARDUINO_BOARD_LILIPAD
-	#define DIGI_PINS	14
-#endif
-
-// Arduino Lilypad Simple
-#ifdef ARDUINO_BOARD_LILYPAD_SIMPLE
-	#define DIGI_PINS	9
-#endif
-
-// Arduino Lilypad Simple Snap
-#ifdef ARDUINO_BOARD_LILYPAD_SIMPLE_SNAP
-	#define DIGI_PINS	9
-#endif
-
-// Arduino Lilypad USB
-#ifdef ARDUINO_BOARD_LILYPAD_USB
-	#define DIGI_PINS	9
-#endif
-
-// Arduino Pro
-#ifdef ARDUINO_BOARD_PRO
-	#define DIGI_PINS	14
-#endif
-
-// Arduino Pro Mini
-#ifdef ARDUINO_BOARD_PRO_MINI
-	#define DIGI_PINS	13
-#endif
-
-// Arduino Fio
-#ifdef ARDUINO_BOARD_FIO
-	#define DIGI_PINS	14
-#endif
-
-// ------------------------------------------------------------
-// Arduino libraries support
-// ------------------------------------------------------------
-#ifdef __cplusplus
-extern "C" {
-#endif
-void loop();
-void setup();
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-// Extra Hardware Serial support
-#if HARD_SER_MAX_PORTS > 0
-	// Descriptors for hardware serial
-	HardwareSerial* hardSerHandler[HARD_SER_MAX_PORTS];
-#endif
-
-// SoftwareSerial library
-#ifdef USE_SOFTWARE_SERIAL
-	#include "SoftwareSerial.h"
-
-	#define SOFT_SER_MSG_SIZE	100
-	#define SOFT_SER_MAX_PORTS	4
-
-	// software serial descriptor
-	typedef struct {
-		SoftwareSerial* handler;
-		char txMsg[SOFT_SER_MSG_SIZE];
-		char rxMsg[SOFT_SER_MSG_SIZE];
-		int txMsgLen;
-		int rxMsgLen;
-	} SoftSerialDesc;
-
-	// Descriptors for software serial
-	SoftSerialDesc softSerDescs[SOFT_SER_MAX_PORTS];
-#endif
+/*******************************************************************************
+ * External libraries support
+ ******************************************************************************/
 
 // PID library
-#ifdef USE_PID
+#ifdef USE_ARDUINO_PID
 	#include "PID_v1.h"
 
 	// PID
@@ -232,603 +50,616 @@ void setup();
 	// PID-relay variable descriptor
 	typedef struct {
 		PID* handler;
-		int pinAnalIn;
-		int pinDigiOut;
-		double inputVar;
-		double outputVar;
-		unsigned long windowSize;
-		unsigned long windowStartTime;
-		double setPoint;
-		boolean isOn;
+		int pin_anal_in;
+		int pin_digi_out;
+		double input_var;
+		double output_var;
+		unsigned long window_size;
+		unsigned long window_start_time;
+		double set_point;
+		boolean enable;
 	} PidRelayDesc;
 
 	// Descriptors for PID controlled variables
-	PidRelayDesc pidRelayDescs[PID_RELAY_MAX_VARS];
+	PidRelayDesc pid_relay_descs[PID_RELAY_MAX_VARS];
 
 #endif
 
-// ------------------------------------------------------------
-// Definitions
-// ------------------------------------------------------------
+/*******************************************************************************
+ * Communication
+ ******************************************************************************/
+// USB Serial communication with user (usually with Instrumentino)
+SerialCommand ser_cmd(Serial);
 
-// arduino definitions
-#define ANAL_OUT_VAL_MAX	255
+// data packet const header for synchronization
+uint8_t packet_const_header[4] = {0xA5,0xA5,0xA5,0xA5};
 
-// serial communication with user (usually with Instrumentino)
-extern HardwareSerial Serial;
-#define SERIAL0_BAUD		115200
-#define RX_BUFF_SIZE		200
-#define ARGV_MAX			30
+// Channels registered for data acquisition
+RegisteredChannelDesc registered_channels[MAX_REGISTERED_CHANNELS];
+int registered_channels_num = 0;
 
-// ------------------------------------------------------------
-// Globals
-// ------------------------------------------------------------
+// Variables for correctly timing sent packets are inside a DataBlock
+// Each time we start a new acquisition block, we reset the variables.
+// All t_XXX variables in the code are relative to the block's t_zero
+// All time variables are expressed in milliseconds
+uint32_t millis_at_t_zero = 0;
+boolean t_zero_set = false;
+uint32_t t_next_sent_packet = 0;
 
-char doneString[5] = "done";
+// Counters
+int cnt_missed_samples = 0;
+int cnt_missed_packets = 0;
 
-// Buffer to keep incoming commands and a pointer to it
-char msg[RX_BUFF_SIZE];
-char *pMsg;
+// A buffer for sending data packets and pointers inside of it.
+uint8_t data_packet[MAX_DATA_PACKET];
+DataPacketHeader* data_packet_header = (DataPacketHeader*)data_packet;
+DataBlockHeader* data_block_header_1 = (DataBlockHeader*)(&data_packet_header[1]);
 
-// Pin blinking
-boolean startBlinking = false;
-int blinkingPin;
-unsigned long blinkLastChangeMs;
-unsigned long blinkingDelayMs;
-
-// ------------------------------------------------------------
-// Command functions - These functions are called when their
-// respective command was issued by the user
-// ------------------------------------------------------------
+/*******************************************************************************
+ * Help functions
+ ******************************************************************************/
 
 /***
- * Set [pin number] [in | out]
- *
- * Set a digital pin mode
+ * Get millis relative to t_zero.
  */
-void cmdSet(char **argV) {
-	int pin = strtol(argV[1], NULL, 10);
-	char* mode = argV[2];
-
-	if (strcasecmp(mode, "in") == 0) {
-		pinMode(pin, INPUT);
-	} else if (strcasecmp(mode, "out") == 0) {
-		pinMode(pin, OUTPUT);
-	} else {
-		return;
-	}
+uint32_t t_now() {
+	return millis() - millis_at_t_zero;
 }
 
 /***
- * Reset
+ * Parse a channel string to its type and number
  *
- * Reset all digital pins to INPUT
- */
-void cmdReset() {
-	for (int i = 0; i < DIGI_PINS; i++) {
-		pinMode(i, INPUT);
-	}
-}
-
-/***
- * BlinkPin
+ * ch_string: 	The channel string to check
  *
- * Start blinking a pin (e.g pin 13 with the LED)
- */
-void cmdBlinkPin(char **argV) {
-	blinkingPin = strtol(argV[1], NULL, 10);
-	blinkingDelayMs = strtol(argV[2], NULL, 10);
-
-	pinMode(blinkingPin, OUTPUT);
-	blinkLastChangeMs = millis();
-	startBlinking = true;
-}
-
-/***
- * Read [pin1] [pin2] ...
+ * Return through output parameters:
+ * found_type:	The channel's type descriptor
+ * found_num:	The channel's number
  *
- * Read pin values
- * Pins are given in the following way: A0 A1 ... for analog pins
- * 										D0 D1 ... for digital pins
- * Answer is: val1 val2 ...
+ * Return: The found channel type descriptor and the channel's number through .
  */
-void cmdRead(int argC, char **argV) {
-	char pinType[2];
-	int pin;
-	int value;
+void parse_channel_string(char* ch_string, ChannelTypeDesc** found_type, int* found_num) {
+	int i;
 
-	for (int i = 1; i <= argC; i++) {
-		pinType[0] = argV[i][0];
-		pinType[1] = NULL;
-		pin = strtol(&(argV[i][1]), NULL, 10);
-
-		if (strcasecmp(pinType, "D") == 0) {
-			value = digitalRead(pin);
-		} else if (strcasecmp(pinType, "A") == 0) {
-			value = analogRead(pin);
-		} else {
+	for (i = 0; i < channel_types_num; i++) {
+		if (strncmp(ch_string, channel_types[i].type, strlen(channel_types[i].type)) == 0) {
+			*found_type = &channel_types[i];
+			*found_num = atol(&ch_string[strlen(channel_types[i].type)]);
 			return;
 		}
-
-		// Add read values to answer string
-		Serial.print(value);
-		if (i < argC) {
-			Serial.print(' ');
-		}
 	}
+
+	// If reached here, it was not found.
+	*found_type = NULL;
+	*found_num = 0;
 }
 
 /***
- * Write [pin number] [digi | anal] [value]
- *
- * Write a value to a pin
+ * Initialize data packets creation.
  */
-void cmdWrite(char **argV) {
-	int pin = strtol(argV[1], NULL, 10);
-	char* type = argV[2];
-	int value = strtol(argV[3], NULL, 10);
+void init_data_packets() {
+	int i;
 
-	if (strcasecmp(type, "digi") == 0) {
-		if (value == 0) {
-			digitalWrite(pin, LOW);
+	// Tell the registered channels to prepare a sample for the next packet
+	for (i = 0; i < registered_channels_num; i++) {
+		registered_channels[i].ready_datapoints = 0;
+		registered_channels[i].t_next_sample = t_next_sent_packet;
+	}
+
+	// Prepare the data packet buffer
+	memcpy(data_packet_header->header.const_header, packet_const_header, sizeof(packet_const_header));
+	data_packet_header->header.type = DATA_PACKET;
+
+	// Schedule the next packet to be after all channels have filled their data blocks
+	t_next_sent_packet += DATA_PACKETS_SAMPLING_PERIOD_MS;
+}
+
+/***
+ * Tend to registered channels and add measurements if necessary.
+ * Also send data packets when the time comes.
+ */
+void tend_to_registered_channels() {
+	int i, j, sample_in_data_block;
+	uint32_t value;
+	uint32_t cur_time;
+	RegisteredChannelDesc* reg_ch_desc;
+	boolean missed_samples = false;
+	DataBlockHeader* data_block_header;
+	uint8_t* data_block;
+
+	// Check if we are ready to start sending
+	if (registered_channels_num == 0 || t_zero_set != true) {
+		return;
+	}
+
+	// Set the current sample time
+	cur_time = t_now();
+
+	// Sample channels if necessary
+	for (i = 0; i < registered_channels_num; i++) {
+		reg_ch_desc = &registered_channels[i];
+
+		// Do we need to sample now?
+		if (cur_time < reg_ch_desc->t_next_sample) {
+			// No need for a sample at the moment.
+			continue;
 		} else {
-			digitalWrite(pin, HIGH);
+
+			// Check if we missed samples and invalidate this packet if we did.
+			reg_ch_desc->t_next_sample += reg_ch_desc->sampling_period_ms;
+			if (reg_ch_desc->t_next_sample < cur_time) {
+				missed_samples = true;
+				break;
+			}
+
+			// Sample once
+			if (reg_ch_desc->type_desc->read_func != NULL) {
+				value = reg_ch_desc->type_desc->read_func(reg_ch_desc->ch_num);
+			} else {
+				value = 0;
+			}
+
+			// Add the sample to the data block, byte by byte (big-endian style).
+			// Don't over-fill in case the block is full.
+			if (reg_ch_desc->ready_datapoints < reg_ch_desc->max_samples_num) {
+				sample_in_data_block = reg_ch_desc->ready_datapoints * reg_ch_desc->bytes_per_datapoint;
+				for (j = 0; j < reg_ch_desc->bytes_per_datapoint; j++) {
+					reg_ch_desc->data_block[sample_in_data_block + reg_ch_desc->bytes_per_datapoint - 1 - j] = value&0xFF;
+					value = value>>8;
+				}
+				reg_ch_desc->ready_datapoints++;
+			}
 		}
-	} else if (strcasecmp(type, "anal") == 0) {
-		analogWrite(pin, max(0, min(ANAL_OUT_VAL_MAX, value)));
+	}
+
+	// Update counters
+	if (missed_samples) {
+		cnt_missed_samples++;
+
+		// Schedule the next packet.
+		while (t_next_sent_packet < cur_time + DATA_PACKETS_SAMPLING_PERIOD_MS) {
+			t_next_sent_packet += DATA_PACKETS_SAMPLING_PERIOD_MS;
+			cnt_missed_packets++;
+		}
+		init_data_packets();
+	}
+
+	// Send a packet if we're ready
+	if (cur_time > t_next_sent_packet) {
+		// Init data block pointers
+		data_block_header = data_block_header_1;
+		data_block = (uint8_t*)(&data_block_header[1]);
+
+		// Init data packet header
+		data_packet_header->header.packet_length = sizeof(DataPacketHeader);
+		data_packet_header->relative_start_timestamp = cur_time;
+		data_packet_header->num_of_blocks = 0;
+
+		// Prepare the data blocks
+		for (i = 0; i < registered_channels_num; i++) {
+			reg_ch_desc = &registered_channels[i];
+
+			// Copy data to the outgoing packet if channel is ready
+			if (reg_ch_desc->ready_datapoints == reg_ch_desc->max_samples_num) {
+				data_block_header->id = i;
+				data_block_header->length = reg_ch_desc->data_block_len;
+				memcpy(data_block, reg_ch_desc->data_block, reg_ch_desc->data_block_len);
+
+				// Update data packet header
+				data_packet_header->num_of_blocks++;
+				data_packet_header->header.packet_length += (sizeof(DataBlockHeader) + data_block_header->length);
+
+				// Init the channel descriptor
+				reg_ch_desc->ready_datapoints = 0;
+
+				// Advance data block pointers
+				data_block_header = (DataBlockHeader*)(data_block + data_block_header->length);
+				data_block = (uint8_t*)(&data_block_header[1]);
+			}
+		}
+
+		// Transmit the packet
+		ser_cmd.write(data_packet, data_packet_header->header.packet_length);
+
+		// Schedule the next sent data packet
+		t_next_sent_packet += DATA_PACKETS_SAMPLING_PERIOD_MS;
+	}
+
+}
+
+/*******************************************************************************
+ * Command handlers - These functions are called when their respective command
+ * was issued by the user
+ ******************************************************************************/
+
+/***
+ * PING
+ *
+ * Used for communications check. Answer with a simple 'pong' string
+ */
+void cmd_ping(SerialCommand this_scmd) {
+	uint8_t packet[100];
+	PacketHeader* general_header = (PacketHeader*)packet;
+	uint8_t* reply = (uint8_t*)(&general_header[1]);
+	char reply_string[5] = "PONG";
+
+	// Prepare reply packet
+	memcpy(general_header->const_header, packet_const_header, sizeof(packet_const_header));
+	general_header->type = STRING_PACKET;
+	memcpy(reply, reply_string, strlen(reply_string));
+	general_header->packet_length = sizeof(PacketHeader) + strlen(reply_string);
+
+	// Transmit reply the packet
+	ser_cmd.write(packet, general_header->packet_length);
+}
+
+/***
+ * ACQUIRE:START
+ *
+ * Start an acquisition block, so start sending data from registered channels.
+ * Adjust the real-time clock to 0 so we can time our measurements that are sent.
+ * A block can't be longer than 10 days because millis() will overflow (32 bit counter).
+ */
+void cmd_acquire_start(SerialCommand this_scmd) {
+	// Set t_zero to be now.
+	millis_at_t_zero = millis();
+	t_zero_set = true;
+
+	// Initialize data packets related timers
+	t_next_sent_packet = 0 + DATA_PACKETS_SAMPLING_PERIOD_MS;
+
+	init_data_packets();
+}
+
+/***
+ * ACQUIRE:STOP
+ *
+ * Stop an acquisition block, so stop sending data from registered channels.
+ */
+void cmd_acquire_stop(SerialCommand this_scmd) {
+	t_zero_set = false;
+}
+
+/***
+ * CH:REGISTER <pin=D0|A0|...>, <sampling_rate>, <bytes_per_datapoint>
+ *
+ * Register a channel for data acquisition.
+ * The data is sent in binary form together with values from other registered channels.
+ * The value can be 1|0 for digital pins (for HIGH & LOW) or a native analog value.
+ *
+ * pin:					The pin's name, e.g. D0, A0, etc.
+ * sampling_rate:		How often should the pin be read.
+ * bytes_per_datapoint:	How many bytes are needed for a single data point. This is optional and is mainly relevant for bus cahnnels (I2C, SPI, etc.)
+ */
+void cmd_ch_register(SerialCommand this_scmd) {
+	char *arg;
+	int ch_num, sampling_rate, bytes_per_datapoint;
+	ChannelTypeDesc* ch_type_desc;
+	RegisteredChannelDesc* reg_ch_desc;
+	boolean isInput;
+
+	// get and check ch_type
+	if (!(arg = this_scmd.next())) return;
+	parse_channel_string(arg, &ch_type_desc, &ch_num);
+	if (!ch_type_desc) return;
+
+	// get sampling_rate
+	if (!(arg = this_scmd.next())) return;
+	sampling_rate = atol(arg);
+
+	// get bytes_per_datapoint
+	if (ch_type_desc->bytes_per_datapoint != 0) {
+		bytes_per_datapoint = ch_type_desc->bytes_per_datapoint;
+	} else {
+		if (!(arg = this_scmd.next())) return;
+		bytes_per_datapoint = atol(&arg[1]);
+	}
+
+	// Add the channel to the registered channels list.
+	reg_ch_desc = &registered_channels[registered_channels_num];
+	reg_ch_desc->type_desc = ch_type_desc;
+	reg_ch_desc->ch_num = ch_num;
+	reg_ch_desc->sampling_rate = sampling_rate;
+	reg_ch_desc->sampling_period_ms = 1000 / sampling_rate;
+	reg_ch_desc->bytes_per_datapoint = bytes_per_datapoint;
+
+	// Allocate memory for the acquired data
+	if (sampling_rate > DATA_PACKETS_SAMPLING_RATE) {
+		reg_ch_desc->max_samples_num = sampling_rate / DATA_PACKETS_SAMPLING_RATE;
+	} else {
+		reg_ch_desc->max_samples_num = 1;
+	}
+	reg_ch_desc->data_block_len = bytes_per_datapoint * reg_ch_desc->max_samples_num;
+	reg_ch_desc->data_block = (uint8_t*)malloc(reg_ch_desc->data_block_len);
+	if (reg_ch_desc->data_block == 0) return;
+
+	// Schedule the next sample
+	reg_ch_desc->t_next_sample = t_next_sent_packet;
+
+	// If successful, update the registered channels number
+	registered_channels_num++;
+}
+
+/***
+ * CH:DIR <channel=D0|D1|...>, <direction=IN|OUT>
+ *
+ * Set direction of a channel to output or input.
+ *
+ * channel:		The channel's name, e.g. D0, D1, etc.
+ * direction:	IN or OUT for input and output.
+ */
+void cmd_ch_dir(SerialCommand this_scmd) {
+	char *arg;
+	int ch_num, i;
+	ChannelTypeDesc* ch_type_desc;
+	char* direction;
+	boolean isInput;
+
+	// get and check ch_type
+	if (!(arg = this_scmd.next())) return;
+	parse_channel_string(arg, &ch_type_desc, &ch_num);
+	if (!ch_type_desc) return;
+
+	// get direction
+	if (!(arg = this_scmd.next())) return;
+	direction = arg;
+
+	if (strcmp(direction, "IN") == 0) {
+		isInput = true;
+	} else if (strcmp(direction, "OUT") == 0) {
+		isInput = false;
 	} else {
 		return;
 	}
-}
 
-/***
- * SetPwmFreq [pin number] [divider]
- *
- * Change the PWM frequency by changing the clock divider
- * This should be done carefully, as the clocks may have other effects on the system.
- * Specifically, pins 5,6 are controlled by timer0, which is also in charge for the delay() function.
- *
- * The divider can get: 1,8,64,256,1024 		for pins 5,6,9,10;
- * 						1,8,32,64,128,256,1024	for pins 3,11
- */
-void cmdSetPwmFreq(char **argV) {
-	int pin = strtol(argV[1], NULL, 10);
-	int divider = strtol(argV[2], NULL, 10);
-
-	byte mode;
-	if(pin == 5 || pin == 6 || pin == 9 || pin == 10) {
-		switch(divider) {
-			case 1: mode = 0x01; break; // 		5,6: 62500 Hz	| 9,10: 31250 Hz
-			case 8: mode = 0x02; break; //		5,6: 7812.5 Hz	| 9,10: 3906.3 Hz
-			case 64: mode = 0x03; break; //		5,6: 976.6 Hz	| 9,10: 488.3 Hz
-			case 256: mode = 0x04; break; //	5,6: 244.1 Hz	| 9,10: 122 Hz
-			case 1024: mode = 0x05; break;//	5,6: 61 Hz		| 9,10: 30.5 Hz
-			default: return;
-		}
-		if(pin == 5 || pin == 6) {
-#if defined(TCCR0B)
-			TCCR0B = (TCCR0B & 0b11111000) | mode;
-#endif
-		} else {
-#if defined(TCCR1B)
-			TCCR1B = (TCCR1B & 0b11111000) | mode;
-#endif
-		}
-	} else if(pin == 3 || pin == 11) {
-		switch(divider) {
-			case 1: mode = 0x01; break; //		31250 Hz
-			case 8: mode = 0x02; break; //		3906.3 Hz
-			case 32: mode = 0x03; break; //		976.6 Hz
-			case 64: mode = 0x04; break; //		488.3 Hz
-			case 128: mode = 0x05; break; //	244.1 Hz
-			case 256: mode = 0x06; break; //	122 Hz
-			case 1024: mode = 0x7; break; //	30.5 Hz
-			default: return;
-		}
-#if defined(TCCR2B)
-		TCCR2B = (TCCR2B & 0b11111000) | mode;
-#endif
+	// set the direction
+	if (ch_type_desc->direction_func != NULL) {
+		ch_type_desc->direction_func(ch_num, isInput);
 	}
 }
 
-#ifdef USE_PID
 /***
- * PidRelayCreate [pidVar] [pinAnalIn] [pinDigiOut] [windowSize] [Kp] [Ki] [Kd]
+ * CH:WRITE <pin=D0|A0|...>, <value1>, <value2>,...
  *
- * Create a PID variable that controls a relay. window size is in ms.
- * See more information: http://playground.arduino.cc/Code/PIDLibraryRelayOutputExample
+ * Write to a channel one or more values. For digital pins, 1 is HIGH and 0 is LOW.
+ *
+ * channel:	The channel's name, e.g. D0, D1, etc.
+ * values:	Each value is up to 32 bit. Several values can be written to bus channels.
  */
-void cmdPidRelayCreate(char **argV) {
-	int pidVar = strtol(argV[1], NULL, 10);
-	int pinAnalIn = strtol(argV[2], NULL, 10);
-	int pinDigiOut = strtol(argV[3], NULL, 10);
-	int windowSize = strtol(argV[4], NULL, 10);
-	double kp = atof(argV[5]);
-	double ki = atof(argV[6]);
-	double kd = atof(argV[7]);
+void cmd_ch_write(SerialCommand this_scmd) {
+	char *arg;
+	int ch_num;
+	uint32_t values[CH_WRITE_MAX_VALUES];
+	int values_num = 0;
+	ChannelTypeDesc* ch_type_desc;
+	boolean isInput;
 
-	if (pidVar < 1 || pidVar > PID_RELAY_MAX_VARS) {
-		return;
+	// get and check ch_type
+	if (!(arg = this_scmd.next())) return;
+	parse_channel_string(arg, &ch_type_desc, &ch_num);
+	if (!ch_type_desc) return;
+
+	// get the values to write
+	for (arg = this_scmd.next(), values_num = 0; arg != NULL; arg = this_scmd.next()) {
+		values[values_num] = atol(arg);
+		values_num++;
 	}
+
+	// write the data
+	if (ch_type_desc->write_func != NULL) {
+		ch_type_desc->write_func(ch_num, values, values_num);
+	}
+}
+
+#ifdef USE_ARDUINO_PID
+/***
+ * PID:RELAY:INIT <id=0|1|...> <input pin=A0|A1|...> <output_pin=D0|D1|...> <window_size> <k_p> <k_i> <k_d>
+ *
+ * Create a PID variable that controls a relay.
+ *
+ * id:				An identifier for this PID variable in order to support several simultaneous variables.
+ * 					The id has to be set here by the user and be used in later PID related commands.
+ * input pin:		The analog input pin through which the analog data is read (to be fed into the PID algorithm).
+ * output pin:		The digital output pin that controls a relay. Opening the relay activates something
+ * 					(e.g. a heating film) that affects the analog input reading (e.g. a thermometer).
+ * window size:		The window size in miliseconds for the PID algorithm.
+ * k_p, k_i, k_d:	The P, I and D parameters for the PID calculation.
+ *
+ * For more information: http://playground.arduino.cc/Code/PIDLibraryRelayOutputExample
+ */
+void cmd_pid_relay_init(SerialCommand this_scmd) {
+	char *arg;
+	int id, pin_anal_in, pin_digi_out, window_size;
+	char pin_type;
+	double k_p, k_i, k_d;
+
+	if (!(arg = this_scmd.next())) return;
+	id = atol(arg);
+	if (id < 0 || id >= PID_RELAY_MAX_VARS) return;
+
+	if (!(arg = this_scmd.next())) return;
+	pin_type = arg[0];
+	if (pin_type != 'A') return;
+	pin_anal_in = atol(&arg[1]);
+
+	if (!(arg = this_scmd.next())) return;
+	pin_type = arg[0];
+	if (pin_type != 'D') return;
+	pin_digi_out = atol(&arg[1]);
+
+	if (!(arg = this_scmd.next())) return;
+	window_size = atol(arg);
+
+	if (!(arg = this_scmd.next())) return;
+	k_p = atof(arg);
+
+	if (!(arg = this_scmd.next())) return;
+	k_i = atof(arg);
+
+	if (!(arg = this_scmd.next())) return;
+	k_d = atof(arg);
+
 
 	// Init the PID variable
-	PidRelayDesc* pidDesc = &pidRelayDescs[pidVar-1];
-	pidDesc->pinAnalIn = pinAnalIn;
-	pidDesc->pinDigiOut = pinDigiOut;
-	pidDesc->windowSize = windowSize;
-	pidDesc->handler = new PID(&pidDesc->inputVar, &pidDesc->outputVar, &pidDesc->setPoint, kp, ki, kd, DIRECT);
-	pidDesc->handler->SetOutputLimits(0, pidDesc->windowSize);
-	pidDesc->isOn = false;
+	PidRelayDesc* pid_desc = &pid_relay_descs[id];
+	pid_desc->pin_anal_in = pin_anal_in;
+	pid_desc->pin_digi_out = pin_digi_out;
+	pid_desc->window_size = window_size;
+	pid_desc->handler = new PID(&pid_desc->input_var, &pid_desc->output_var, &pid_desc->set_point, k_p, k_i, k_d, DIRECT);
+	pid_desc->handler->SetOutputLimits(0, pid_desc->window_size);
+	pid_desc->enable = false;
 }
 
 /***
- * PidRelayTune [Kp] [Ki] [Kd]
+ * PID:RELAY:TUNE <k_p>,<k_i>,<k_d>
  *
- * Set the PID tuning parameters
+ * Set the PID tuning parameters.
+ *
+ * id:				An identifier for this PID variable in order to support several simultaneous variables.
+ * 					This is the same id that was recevied in the PID:RELAY:INIT command.
+ * k_p, k_i, k_d:	The P, I and D parameters for the PID calculation.
+ *
  */
-void cmdPidRelayTune(char **argV) {
-	int pidVar = strtol(argV[1], NULL, 10);
-	double kp = atof(argV[2]);
-	double ki = atof(argV[3]);
-	double kd = atof(argV[4]);
+void cmd_pid_relay_tune(SerialCommand this_scmd) {
+	char *arg;
+	int id;
+	double k_p, k_i, k_d;
 
-	if (pidVar < 1 || pidVar > PID_RELAY_MAX_VARS) {
-		return;
-	}
+	if (!(arg = this_scmd.next())) return;
+	id = atol(arg);
+	if (id < 0 || id >= PID_RELAY_MAX_VARS) return;
 
-	PidRelayDesc* pidDesc = &pidRelayDescs[pidVar-1];
-	pidDesc->handler->SetTunings(kp, ki, kd);
+	if (!(arg = this_scmd.next())) return;
+	k_p = atof(arg);
+
+	if (!(arg = this_scmd.next())) return;
+	k_i = atof(arg);
+
+	if (!(arg = this_scmd.next())) return;
+	k_d = atof(arg);
+
+	PidRelayDesc* pid_desc = &pid_relay_descs[id];
+	pid_desc->handler->SetTunings(k_p, k_i, k_d);
 }
 
 /***
- * PidRelaySet [pidVar] [setpoint]
+ * PID:RELAY:SET <id>,<set_point>
  *
  * Start controlling a relay using a PID variable
+ *
+ * id:			An identifier for this PID variable in order to support several simultaneous variables.
+ * 				This is the same id that was received in the PID:RELAY:INIT command.
+ * set_point:	The desired value to be read from the input variable.
  */
-void cmdPidRelaySet(char **argV) {
-	int pidVar = strtol(argV[1], NULL, 10);
-	int setPoint = strtol(argV[2], NULL, 10);
+void cmd_pid_relay_set(SerialCommand this_scmd) {
+	char *arg;
+	int id, set_point;
 
-	if (pidVar < 1 || pidVar > PID_RELAY_MAX_VARS) {
-		return;
-	}
+	if (!(arg = this_scmd.next())) return;
+	id = atol(arg);
+	if (id < 0 || id >= PID_RELAY_MAX_VARS) return;
 
-	PidRelayDesc* pidDesc = &pidRelayDescs[pidVar-1];
-	pidDesc->setPoint = setPoint;
+	if (!(arg = this_scmd.next())) return;
+	set_point = atol(arg);
+
+	PidRelayDesc* pid_desc = &pid_relay_descs[id];
+	pid_desc->set_point = set_point;
 }
 
 /***
- * PidRelayEnable [pidVar] [0 | 1]
+ * PID:RELAY:ENABLE <id>,<enable=HIGH|LOW>
  *
- * Start/Stop the control loop
+ * Start/Stop the control loop.
+ *
+ * id:		An identifier for this PID variable in order to support several simultaneous variables.
+ * 			This is the same id that was recevied in the PID:RELAY:INIT command.
+ * enable:	Enable/disable (HIGH or LOW) the PID feedback loop.
  */
-void cmdPidRelayEnable(char **argV) {
-	int pidVar = strtol(argV[1], NULL, 10);
-	int enable = strtol(argV[2], NULL, 10);
+void cmd_pid_relay_enable(SerialCommand this_scmd) {
+	char *arg, *enable;
+	int id;
 
-	if (pidVar < 1 || pidVar > PID_RELAY_MAX_VARS) {
-		return;
-	}
+	if (!(arg = this_scmd.next())) return;
+	id = atol(arg);
+	if (id < 0 || id >= PID_RELAY_MAX_VARS) return;
 
-	PidRelayDesc* pidDesc = &pidRelayDescs[pidVar-1];
-	pidDesc->windowStartTime = millis();
+	if (!(arg = this_scmd.next())) return;
+	enable = arg;
+
+	PidRelayDesc* pid_desc = &pid_relay_descs[id];
+	pid_desc->window_start_time = millis();
 
 	// turn the PID on/off
-	if (enable != 0) {
-		pidDesc->isOn = true;
-		pidDesc->handler->SetMode(AUTOMATIC);
+	if (strcmp(enable, "HIGH") == 0) {
+		pid_desc->enable = true;
+		pid_desc->handler->SetMode(AUTOMATIC);
+	} else if (strcmp(enable, "LOW") == 0) {
+		pid_desc->enable = false;
+		pid_desc->handler->SetMode(MANUAL);
+		digitalWrite(pid_desc->pin_digi_out, LOW);
 	} else {
-		pidDesc->isOn = false;
-		pidDesc->handler->SetMode(MANUAL);
-		digitalWrite(pidDesc->pinDigiOut, LOW);
-	}
-}
-#endif
-
-/***
- * HardSerConnect [baudrate] [port]
- *
- * Initiate a software serial connection. The rx-pin should have external interrupts
- */
-void cmdHardSerConnect(char **argV) {
-#if HARD_SER_MAX_PORTS > 0
-	int baudrate = strtol(argV[1], NULL, 10);
-	int currPort = strtol(argV[2], NULL, 10);
-
-	if (currPort < 1 || currPort > HARD_SER_MAX_PORTS) {
 		return;
 	}
-
-	// begin serial communication
-	hardSerHandler[currPort-1]->begin(baudrate);
-#endif
-}
-
-/***
- * SoftSerConnect [rx-pin number] [tx-pin number] [baudrate] [port]
- *
- * Initiate a software serial connection. The rx-pin should have external interrupts
- */
-void cmdSoftSerConnect(char **argV) {
-#ifdef USE_SOFTWARE_SERIAL
-	int pinIn = strtol(argV[1], NULL, 10);
-	int pinOut = strtol(argV[2], NULL, 10);
-	int baudrate = strtol(argV[3], NULL, 10);
-	int currPort = strtol(argV[4], NULL, 10);
-
-	if (currPort < 1 || currPort > SOFT_SER_MAX_PORTS) {
-		return;
-	}
-
-	// init softSerial struct
-	softSerDescs[currPort-1].rxMsgLen = 0;
-	softSerDescs[currPort-1].txMsgLen = 0;
-	softSerDescs[currPort-1].handler = new SoftwareSerial(pinIn, pinOut, false);
-	softSerDescs[currPort-1].handler->begin(baudrate);
-#endif
-}
-
-/***
- * SerSend [hard | soft] [port]
- *
- * After this command, each character sent is mirrored to the chosen serial
- * port until the NULL character (0x00) is sent (also mirrored)
- */
-void cmdSerSend(char **argV) {
-	boolean isSoftSerial = (strcasecmp(argV[1], "soft") == 0);
-	int currPort = strtol(argV[2], NULL, 10);
-	Serial.println(doneString);
-
-	if (currPort < 1 || currPort > ((isSoftSerial)? SOFT_SER_MAX_PORTS : HARD_SER_MAX_PORTS)) {
-		return;
-	}
-	if (isSoftSerial) {
-#ifdef USE_SOFTWARE_SERIAL
-		softSerDescs[currPort-1].txMsgLen = 0;
-#endif
-	}
-
-	// mirror the hardware serial and the software serial
-	while (true) {
-		if (Serial.available()) {
-			char c = Serial.read();
-			if (isSoftSerial) {
-#ifdef USE_SOFTWARE_SERIAL
-				softSerDescs[currPort-1].txMsg[softSerDescs[currPort-1].txMsgLen++] = c;
-#endif
-			} else {
-#if HARD_SER_MAX_PORTS > 0
-				hardSerHandler[currPort-1]->write(c);
-#else
-				return;
-#endif
-			}
-
-			if (c == '\0') {
-				// acknowledge
-				Serial.println(doneString);
-				delay(10);
-#ifdef USE_SOFTWARE_SERIAL
-				if (isSoftSerial) {
-					// send the message, and remember the answer
-					for (int i = 0; i < softSerDescs[currPort-1].txMsgLen; i++) {
-						softSerDescs[currPort-1].handler->write(softSerDescs[currPort-1].txMsg[i]);
-					}
-					softSerDescs[currPort-1].rxMsgLen = 0;
-					while (!Serial.available()) {
-						if (softSerDescs[currPort-1].handler->available() && softSerDescs[currPort-1].rxMsgLen < SOFT_SER_MSG_SIZE) {
-							softSerDescs[currPort-1].rxMsg[softSerDescs[currPort-1].rxMsgLen++] = softSerDescs[currPort-1].handler->read();
-						}
-					}
-				}
-#endif
-				return;
-			}
-		}
-	}
-}
-
-/***
- * SerReceive [hard | soft] [port]
- *
- * Empty the RX buffer of a serial port to the control serial port
- */
-void cmdSerReceive(char **argV) {
-	boolean isSoftSerial = (strcasecmp(argV[1], "soft") == 0);
-	int currPort = strtol(argV[2], NULL, 10);
-
-	if (currPort < 1 || currPort > (isSoftSerial)? SOFT_SER_MAX_PORTS : HARD_SER_MAX_PORTS) {
-		return;
-	}
-
-	if (isSoftSerial) {
-#ifdef USE_SOFTWARE_SERIAL
-		for (int i = 0; i < softSerDescs[currPort-1].rxMsgLen && i < SOFT_SER_MSG_SIZE; i++) {
-			Serial.write(softSerDescs[currPort-1].rxMsg[i]);
-		}
-#endif
-	} else {
-#if HARD_SER_MAX_PORTS > 0
-		while (hardSerHandler[currPort-1]->available()) {
-			Serial.write(hardSerHandler[currPort-1]->read());
-		}
-#endif
-	}
-}
-
-/***
- * I2cWrite [address] [val1] [val2] ...
- *
- * Write a series of values to the I2C bus
- */
-void cmdI2cWrite(int argC, char **argV) {
-#ifdef USE_WIRE
-	int address = strtol(argV[1], NULL, 10);
-
-	Wire.beginTransmission(address);
-	for (int i = 2; i <= argC-1; i++) {
-		Wire.write(strtol(argV[i], NULL, 10));
-	}
-	Wire.endTransmission();
 }
 #endif
 
-// ------------------------------------------------------------
-// Main functions
-// ------------------------------------------------------------
-
+/*******************************************************************************
+ * Main functions
+ ******************************************************************************/
 /***
  * The setup function is called once at startup of the sketch
  */
 void setup() {
+	// Init serial communication
 	Serial.begin(SERIAL0_BAUD);
-	pMsg = msg;
 
-#ifdef USE_WIRE
-	// Connect to the I2C bus
-	Wire.begin();
+	// Setup callbacks for SerialCommand commands
+	ser_cmd.addCommand("PING",			cmd_ping);
+	ser_cmd.addCommand("CH:DIR",			cmd_ch_dir);
+	ser_cmd.addCommand("CH:WRITE",		cmd_ch_write);
+	ser_cmd.addCommand("CH:REGISTER",	cmd_ch_register);
+	ser_cmd.addCommand("ACQUIRE:START",	cmd_acquire_start);
+	ser_cmd.addCommand("ACQUIRE:STOP",	cmd_acquire_stop);
+#ifdef USE_ARDUINO_PID
+	ser_cmd.addCommand("PID:RELAY:INIT",	cmd_pid_relay_init);
+	ser_cmd.addCommand("PID:RELAY:SET",	cmd_pid_relay_set);
+	ser_cmd.addCommand("PID:RELAY:TUNE",	cmd_pid_relay_tune);
+	ser_cmd.addCommand("PID:RELAY:ENABLE",	cmd_pid_relay_enable);
 #endif
-
-	// Init hardware serial ports if they exist
-	for (int i = 0; i < HARD_SER_MAX_PORTS; i++)
-	{
-		switch (i + 1) {
-		#if HARD_SER_MAX_PORTS >= 1
-			case 1:
-				hardSerHandler[i] = &Serial1;
-				break;
-		#endif
-		#if HARD_SER_MAX_PORTS >= 2
-			case 2:
-				hardSerHandler[i] = &Serial2;
-				break;
-		#endif
-		#if HARD_SER_MAX_PORTS >= 3
-			case 3:
-				hardSerHandler[i] = &Serial3;
-				break;
-		#endif
-		}
-	}
 }
 
 /***
  * The loop function is called in an endless loop
  */
 void loop() {
-	char c, argC;
-	char *argV[ARGV_MAX];
-	int i, pin;
-	unsigned long curMs;
+	int i;
+	uint32_t curr_millis;
 
-	// Take care of blinking LED
-	if (startBlinking == true) {
-		curMs = millis();
-		if (curMs > blinkLastChangeMs + blinkingDelayMs) {
-			blinkLastChangeMs = curMs;
-			if (digitalRead(blinkingPin) == HIGH) {
-				digitalWrite(blinkingPin, LOW);
-			} else {
-				digitalWrite(blinkingPin, HIGH);
-			}
-		}
-	}
+	// Tend to registered channels
+	tend_to_registered_channels();
 
-#ifdef USE_PID
+	// Tend to serial communication
+	ser_cmd.readSerial();
+
+#ifdef USE_ARDUINO_PID
 	// Take care PID-relay variables
 	for (i = 0; i < PID_RELAY_MAX_VARS; i++) {
-		if (pidRelayDescs[i].isOn) {
-			pidRelayDescs[i].inputVar = analogRead(pidRelayDescs[i].pinAnalIn);
-			pidRelayDescs[i].handler->Compute();
+		if (pid_relay_descs[i].enable) {
+			pid_relay_descs[i].input_var = analogRead(pid_relay_descs[i].pin_anal_in);
+			pid_relay_descs[i].handler->Compute();
 
 			// turn relay on/off according to the PID output
-			curMs = millis();
-			if (curMs - pidRelayDescs[i].windowStartTime > pidRelayDescs[i].windowSize) {
+			curr_millis = millis();
+			if (curr_millis - pid_relay_descs[i].window_start_time > pid_relay_descs[i].window_size) {
 				//time to shift the Relay Window
-				pidRelayDescs[i].windowStartTime += pidRelayDescs[i].windowSize;
+				pid_relay_descs[i].window_start_time += pid_relay_descs[i].window_size;
 			}
-			if (pidRelayDescs[i].outputVar > curMs - pidRelayDescs[i].windowStartTime) {
-				digitalWrite(pidRelayDescs[i].pinDigiOut, HIGH);
+			if (pid_relay_descs[i].output_var > curr_millis - pid_relay_descs[i].window_start_time) {
+				digitalWrite(pid_relay_descs[i].pin_digi_out, HIGH);
 			}
 			else {
-				digitalWrite(pidRelayDescs[i].pinDigiOut, LOW);
+				digitalWrite(pid_relay_descs[i].pin_digi_out, LOW);
 			}
 		}
 	}
 #endif
-
-	// Read characters from the control serial port and act upon them
-	if (Serial.available()) {
-		c = Serial.read();
-		switch (c) {
-		case '\n':
-			break;
-		case '\r':
-			// end the string and init pMsg
-			Serial.println("");
-			*(pMsg++) = NULL;
-			pMsg = msg;
-			// parse the command line statement and break it up into space-delimited
-			// strings. the array of strings will be saved in the argV array.
-			i = 0;
-			argV[i] = strtok(msg, " ");
-
-			do {
-				argV[++i] = strtok(NULL, " ");
-			} while ((i < ARGV_MAX) && (argV[i] != NULL));
-
-			// save off the number of arguments
-			argC = i;
-			pin = strtol(argV[1], NULL, 10);
-
-			if (strcasecmp(argV[0], "Set") == 0) {
-				cmdSet(argV);
-			} else if (strcasecmp(argV[0], "Reset") == 0) {
-				cmdReset();
-			} else if (strcasecmp(argV[0], "BlinkPin") == 0) {
-				cmdBlinkPin(argV);
-			} else if (strcasecmp(argV[0], "Read") == 0) {
-				cmdRead(argC, argV);
-			} else if (strcasecmp(argV[0], "Write") == 0) {
-				cmdWrite(argV);
-			} else if (strcasecmp(argV[0], "SetPwmFreq") == 0) {
-				cmdSetPwmFreq(argV);
-#ifdef USE_PID
-			} else if (strcasecmp(argV[0], "PidRelayCreate") == 0) {
-				cmdPidRelayCreate(argV);
-			} else if (strcasecmp(argV[0], "PidRelaySet") == 0) {
-				cmdPidRelaySet(argV);
-			} else if (strcasecmp(argV[0], "PidRelayTune") == 0) {
-				cmdPidRelayTune(argV);
-			} else if (strcasecmp(argV[0], "PidRelayEnable") == 0) {
-				cmdPidRelayEnable(argV);
-#endif
-			} else if (strcasecmp(argV[0], "HardSerConnect") == 0) {
-				cmdHardSerConnect(argV);
-			} else if (strcasecmp(argV[0], "SoftSerConnect") == 0) {
-				cmdSoftSerConnect(argV);
-			} else if (strcasecmp(argV[0], "SerSend") == 0) {
-				cmdSerSend(argV);
-			} else if (strcasecmp(argV[0], "SerReceive") == 0) {
-				cmdSerReceive(argV);
-#ifdef USE_WIRE
-			} else if (strcasecmp(argV[0], "I2cWrite") == 0) {
-				cmdI2cWrite(argC, argV);
-#endif
-			} else {
-				// Wrong command
-				return;
-			}
-
-			// Acknowledge the command
-			Serial.println(doneString);
-			break;
-		default:
-			// Record the received character
-			if (isprint(c) && pMsg < msg + sizeof(msg)) {
-				*(pMsg++) = c;
-			}
-			break;
-		}
-	}
 }
