@@ -29,6 +29,7 @@ Please comment/uncomment the appropriate define statements
 //#define USE_SOFTWARE_SERIAL
 #define USE_PID
 #define USE_WIRE
+#define USE_SPI
 
 /* ------------------------------------------------------------
 Dear user (2):
@@ -44,11 +45,11 @@ compile Controlino. Only one model should be used (uncommented)
 //#define ARDUINO_BOARD_MICRO
 //#define ARDUINO_BOARD_ESPLORA
 //#define ARDUINO_BOARD_MEGA_ADK
-//#define ARDUINO_BOARD_MEGA_2560
+#define ARDUINO_BOARD_MEGA_2560
 //#define ARDUINO_BOARD_ETHERNET
 //#define ARDUINO_BOARD_ROBOT
 //#define ARDUINO_BOARD_MINI
-#define ARDUINO_BOARD_NANO
+//#define ARDUINO_BOARD_NANO
 //#define ARDUINO_BOARD_LILYPAD
 //#define ARDUINO_BOARD_LILYPAD_SIMPLE
 //#define ARDUINO_BOARD_LILYPAD_SIMPLE_SNAP
@@ -70,7 +71,14 @@ what you're doing)
 #include "Arduino.h"
 #include "string.h"
 #include "HardwareSerial.h"
+
+#ifdef USE_WIRE
 #include "Wire.h"
+#endif
+
+#ifdef USE_SPI
+#include "SPI.h"
+#endif
 
 // Default values, to be overridden later
 #define HARD_SER_MAX_PORTS	0
@@ -549,8 +557,8 @@ void cmdHardSerConnect(char **argV) {
  *
  * Initiate a software serial connection. The rx-pin should have external interrupts
  */
-void cmdSoftSerConnect(char **argV) {
 #ifdef USE_SOFTWARE_SERIAL
+void cmdSoftSerConnect(char **argV) {
 	int pinIn = strtol(argV[1], NULL, 10);
 	int pinOut = strtol(argV[2], NULL, 10);
 	int baudrate = strtol(argV[3], NULL, 10);
@@ -565,8 +573,8 @@ void cmdSoftSerConnect(char **argV) {
 	softSerDescs[currPort-1].txMsgLen = 0;
 	softSerDescs[currPort-1].handler = new SoftwareSerial(pinIn, pinOut, false);
 	softSerDescs[currPort-1].handler->begin(baudrate);
-#endif
 }
+#endif
 
 /***
  * SerSend [hard | soft] [port]
@@ -661,8 +669,8 @@ void cmdSerReceive(char **argV) {
  *
  * Write a series of values to the I2C bus
  */
-void cmdI2cWrite(int argC, char **argV) {
 #ifdef USE_WIRE
+void cmdI2cWrite(int argC, char **argV) {
 	int address = strtol(argV[1], NULL, 10);
 
 	Wire.beginTransmission(address);
@@ -670,6 +678,25 @@ void cmdI2cWrite(int argC, char **argV) {
 		Wire.write(strtol(argV[i], NULL, 10));
 	}
 	Wire.endTransmission();
+}
+#endif
+
+/***
+ * SpiWrite [cs_pin] [val1] [val2] ...
+ *
+ * Write a series of values to the SPI bus
+ */
+#ifdef USE_SPI
+void cmdSpiWrite(int argC, char **argV) {
+	int cs_pin = strtol(argV[1], NULL, 10);
+
+	noInterrupts();
+	digitalWrite(cs_pin, LOW);
+	for (int i = 2; i <= argC-1; i++) {
+		SPI.transfer(strtol(argV[i], NULL, 10));
+	}
+	digitalWrite(cs_pin, HIGH);
+	interrupts();
 }
 #endif
 
@@ -685,8 +712,15 @@ void setup() {
 	pMsg = msg;
 
 #ifdef USE_WIRE
-	// Connect to the I2C bus
+	// Init the I2C bus
 	Wire.begin();
+#endif
+
+#ifdef USE_SPI
+	// Init the SPI bus
+	SPI.begin();
+	SPI.setBitOrder(MSBFIRST);
+	SPI.setDataMode(SPI_MODE0);
 #endif
 
 	// Init hardware serial ports if they exist
@@ -805,8 +839,10 @@ void loop() {
 #endif
 			} else if (strcasecmp(argV[0], "HardSerConnect") == 0) {
 				cmdHardSerConnect(argV);
+#ifdef USE_SOFTWARE_SERIAL
 			} else if (strcasecmp(argV[0], "SoftSerConnect") == 0) {
 				cmdSoftSerConnect(argV);
+#endif
 			} else if (strcasecmp(argV[0], "SerSend") == 0) {
 				cmdSerSend(argV);
 			} else if (strcasecmp(argV[0], "SerReceive") == 0) {
@@ -814,6 +850,10 @@ void loop() {
 #ifdef USE_WIRE
 			} else if (strcasecmp(argV[0], "I2cWrite") == 0) {
 				cmdI2cWrite(argC, argV);
+#endif
+#ifdef USE_SPI
+			} else if (strcasecmp(argV[0], "SpiWrite") == 0) {
+				cmdSpiWrite(argC, argV);
 #endif
 			} else {
 				// Wrong command
@@ -832,3 +872,7 @@ void loop() {
 		}
 	}
 }
+
+
+//##############
+//set CS to high in the start

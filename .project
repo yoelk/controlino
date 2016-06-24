@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>controlino</name>
+	<name>controlino_v1</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -37,6 +37,11 @@
 			<locationURI>ArduinoPivateLibPath/PID_v1</locationURI>
 		</link>
 		<link>
+			<name>Libraries/SPI</name>
+			<type>2</type>
+			<locationURI>ArduinoHardwareLibPath/SPI</locationURI>
+		</link>
+		<link>
 			<name>Libraries/SoftwareSerial</name>
 			<type>2</type>
 			<locationURI>ArduinoHardwareLibPath/SoftwareSerial</locationURI>
@@ -54,7 +59,7 @@
 		<link>
 			<name>arduino/variant</name>
 			<type>2</type>
-			<locationURI>ArduinoPinPath/eightanaloginputs</locationURI>
+			<locationURI>ArduinoPinPath/mega</locationURI>
 		</link>
 	</linkedResources>
 	<variableList>
